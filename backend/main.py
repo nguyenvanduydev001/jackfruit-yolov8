@@ -2,11 +2,11 @@ from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 from PIL import Image
-import io, base64, os
+import io, base64, os, requests
 
 app = FastAPI()
 
-# Cấu hình CORS
+# Cho phép truy cập từ frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,13 +15,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Khai báo các model có sẵn
+# Các model khả dụng
 MODEL_PATHS = {
     "YOLOv8n": os.path.join("backend", "models", "jackfruit_yolov8n.pt"),
-    "YOLOv8s": os.path.join("backend", "models", "jackfruit_yolov8s.pt")
+    "YOLOv8s": os.path.join("backend", "models", "jackfruit_yolov8s.pt"),
 }
 
-# Cache model để không load lại nhiều lần
 loaded_models = {}
 
 def get_model(model_name: str):
@@ -39,11 +38,28 @@ def root():
 
 @app.post("/predict/")
 async def predict(
-    file: UploadFile = File(...),
-    model_name: str = Form("YOLOv8s")
+    model_name: str = Form("YOLOv8s"),
+    file: UploadFile = File(None),
+    image_url: str = Form(None)
 ):
+    # Xử lý ảnh từ file hoặc URL
+    if file:
+        image_bytes = await file.read()
+    elif image_url:
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(image_url, headers=headers, timeout=10, verify=False)
+            if response.status_code != 200:
+                return {"error": f"Không thể tải ảnh từ URL. Mã lỗi: {response.status_code}"}
+            image_bytes = response.content
+        except Exception as e:
+            return {"error": f"Lỗi khi tải ảnh: {str(e)}"}
+    else:
+        return {"error": "Chưa cung cấp ảnh hoặc URL."}
+
     model = get_model(model_name)
-    image = Image.open(io.BytesIO(await file.read()))
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
     results = model(image)
     result = results[0]
 
@@ -56,7 +72,7 @@ async def predict(
     img_pil.save(buffer, format="JPEG")
     img_str = base64.b64encode(buffer.getvalue()).decode()
 
-    # Tạo danh sách dự đoán
+    # Danh sách dự đoán
     predictions = []
     for box in result.boxes:
         cls_id = int(box.cls)
