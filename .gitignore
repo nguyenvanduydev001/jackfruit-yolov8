@@ -1,0 +1,39 @@
+# ----------------------------------------------------
+# 1. Môi trường Ảo (Virtual Environment)
+# ----------------------------------------------------
+# Loại trừ thư mục môi trường ảo venv đã tạo trong dự án này
+venv/
+.venv/
+env/
+.env/
+
+# ----------------------------------------------------
+# 2. File liên quan đến Python/Build
+# ----------------------------------------------------
+# File biên dịch bytecode
+__pycache__/
+*.pyc
+*.pyd
+*.so
+
+# Thư mục build và phân phối
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# ----------------------------------------------------
+# 3. File Log và Dữ liệu tạm thời
+# ----------------------------------------------------
+*.log
+*.sqlite
+*.db
+
+# ----------------------------------------------------
+# 4. File cấu hình Editor/IDE (Tùy chọn)
+# ----------------------------------------------------
+# Thư mục cấu hình của Visual Studio Code
+.vscode/
+
+# Thư mục cấu hình của JetBrains IDEs (PyCharm, WebStorm,...)
+.idea/
