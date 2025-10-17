@@ -1,13 +1,12 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-import io
 from PIL import Image
-import base64
+import io, base64, os
 
 app = FastAPI()
 
-# Cấu hình CORS để Streamlit có thể gọi API
+# Cấu hình CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,25 +15,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load model
-model = YOLO("backend/models/jackfruit_yolov8s.pt")
+# Khai báo các model có sẵn
+MODEL_PATHS = {
+    "YOLOv8n": os.path.join("backend", "models", "jackfruit_yolov8n.pt"),
+    "YOLOv8s": os.path.join("backend", "models", "jackfruit_yolov8s.pt")
+}
+
+# Cache model để không load lại nhiều lần
+loaded_models = {}
+
+def get_model(model_name: str):
+    if model_name not in loaded_models:
+        if model_name not in MODEL_PATHS:
+            raise ValueError(f"Model '{model_name}' không tồn tại.")
+        loaded_models[model_name] = YOLO(MODEL_PATHS[model_name])
+    return loaded_models[model_name]
+
+
+@app.get("/")
+def root():
+    return {"message": "Jackfruit YOLOv8 API is running!"}
+
 
 @app.post("/predict/")
-async def predict(file: UploadFile = File(...)):
+async def predict(
+    file: UploadFile = File(...),
+    model_name: str = Form("YOLOv8s")
+):
+    model = get_model(model_name)
     image = Image.open(io.BytesIO(await file.read()))
     results = model(image)
     result = results[0]
 
     # Xuất ảnh có bounding box
-    img_res = result.plot()  # numpy array (BGR)
-    img_pil = Image.fromarray(img_res[..., ::-1])  # đổi sang RGB để hiển thị
+    img_res = result.plot()
+    img_pil = Image.fromarray(img_res[..., ::-1])
 
-    # Encode ảnh sang base64 để gửi cho frontend
+    # Encode ảnh sang base64
     buffer = io.BytesIO()
     img_pil.save(buffer, format="JPEG")
     img_str = base64.b64encode(buffer.getvalue()).decode()
 
-    # Lấy nhãn và độ tin cậy
+    # Tạo danh sách dự đoán
     predictions = []
     for box in result.boxes:
         cls_id = int(box.cls)
@@ -45,8 +67,4 @@ async def predict(file: UploadFile = File(...)):
             "confidence": round(conf, 3)
         })
 
-    return {"predictions": predictions, "image": img_str}
-@app.get("/")
-def root():
-    return {"message": "Jackfruit YOLOv8 API is running!"}
-
+    return {"model_used": model_name, "predictions": predictions, "image": img_str}
