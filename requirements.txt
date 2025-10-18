@@ -5,3 +5,6 @@ pillow
 python-multipart
 streamlit
 requests
+streamlit-webrtc
+opencv-python-headless
+av
